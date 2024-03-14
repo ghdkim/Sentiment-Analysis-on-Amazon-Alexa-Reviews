@@ -18,7 +18,7 @@ STOPWORDS = set(stopwords.words("english"))
 
 app = Flask(__name__)
 
-# CORS(app)
+CORS(app)
 
 @app.route("/test", methods=["GET"])
 def test():
@@ -106,6 +106,11 @@ def single_prediction(predictor, scaler, cv, text_input):
     X_prediction = cv.transform(corpus).toarray()  # Transform expects an iterable
     X_prediction_scl = scaler.transform(X_prediction)
     y_prediction = predictor.predict(X_prediction_scl)[0]
+
+    # Check for the word "bad" in the processed text
+    if "bad" in corpus[0]:
+        return y_prediction == 0
+
     return "Positive" if y_prediction == 1 else "Negative"
 
 def bulk_prediction(predictor, scaler, cv, data):
@@ -137,14 +142,24 @@ def get_distribution_graph(sentiments):
 
     return buf
 
-def process_and_predict_single_input(predictor, scaler, cv, text_input):
-    # Split the input text by commas, process, and predict each
-    reviews = [process_text(review.strip()) for review in text_input.split(',')]
-    if not reviews:
-        return "Error: No reviews to process", None
 
-    # Vectorize and predict sentiment for each review
-    X_prediction = cv.transform(reviews).toarray()
+def process_and_predict_single_input(predictor, scaler, cv, text_input):
+    # Split the input text by commas and process each
+    reviews = [review.strip() for review in text_input.split(',')]
+    processed_reviews = [process_text(review) for review in reviews]
+
+    # Initially assume no negative override
+    negative_override = False
+
+    # Check for the word "bad" in each original (unprocessed) review
+    # If "bad" is found, set negative_override to True
+    for review in reviews:
+        if "bad" in review.lower():
+            negative_override = True
+            break
+
+    # Vectorize and predict sentiment for each processed review
+    X_prediction = cv.transform(processed_reviews).toarray()
     X_prediction_scl = scaler.transform(X_prediction)
     predictions = predictor.predict(X_prediction_scl)
 
@@ -152,9 +167,14 @@ def process_and_predict_single_input(predictor, scaler, cv, text_input):
     positive_count = sum(predictions == 1)
     negative_count = sum(predictions == 0)
 
+    # If negative_override is True, adjust counts to ensure overall sentiment is Negative
+    if negative_override:
+        negative_count = max(negative_count, positive_count + 1)  # Ensure majority is negative
+
     # Generate the pie chart
     fig, ax = plt.subplots()
-    ax.pie([positive_count, negative_count], labels=['Positive', 'Negative'], autopct='%1.1f%%', startangle=90, colors=['lightgreen', 'red'])
+    ax.pie([positive_count, negative_count], labels=['Positive', 'Negative'], autopct='%1.1f%%', startangle=90,
+           colors=['lightgreen', 'red'])
     ax.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
 
     buf = BytesIO()
@@ -163,10 +183,10 @@ def process_and_predict_single_input(predictor, scaler, cv, text_input):
     buf.seek(0)
 
     # Determine overall sentiment based on majority
-    overall_sentiment = "Positive" if positive_count >= negative_count else "Negative"
+    overall_sentiment = "Negative" if negative_override else (
+        "Positive" if positive_count >= negative_count else "Negative")
 
     return overall_sentiment, buf
-
 
 if __name__ == "__main__":
     app.run(port=5000, debug=True)
