@@ -1,0 +1,5 @@
+I tried changing my code based on your suggestions to improve my project.
+
+1. I have made sure matplotlib is not running in separate threads
+2. I tried fixing the CSV upload. However, it seems as though there have been errors regarding the connection between my Flask and Javascript application. I tried changing the code here and there. However, whenever this is done, the application is not functional. 
+3. I have added the requirements.txt file in my repository
