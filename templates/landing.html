@@ -167,41 +167,38 @@ function predict() {
     var graphContainer = document.getElementById("graphContainer");
     var downloadBtn = document.getElementById("downloadBtn");
 
-    // Explicitly clear the previous prediction result and graph
+    // Clear the previous results and hide download button initially
     predictionResult.innerHTML = "";
-    graphContainer.innerHTML = ""; // Ensure this clears the graph effectively
-    downloadBtn.style.display = "none"; // Hide the download button initially
+    graphContainer.innerHTML = "";
+    downloadBtn.style.display = "none";
 
     var formData = new FormData();
     var fetchOptions = {
         method: "POST",
-        headers: {}
+        body: null
     };
 
-    // Determine whether to send a file or text input
+    // Append file data to formData if a file is selected, else prepare JSON data
     if (csvFileInput.files.length > 0) {
         formData.append("file", csvFileInput.files[0]);
         fetchOptions.body = formData;
     } else {
-        fetchOptions.headers["Content-Type"] = "application/json";
+        fetchOptions.headers = { "Content-Type": "application/json" };
         fetchOptions.body = JSON.stringify({ "text": textInput.value.trim() });
     }
 
-    // Fetch request to the Flask backend
+    // Make the fetch request to the Flask backend
     fetch("http://127.0.0.1:5000/predict", fetchOptions)
         .then(response => {
             if (!response.ok) {
-                throw new Error('Network response was not ok.');
+                throw new Error('Network response was not ok. Status: ' + response.status);
             }
-            // Check if the response is a graph or prediction result
             return response.headers.get('X-Graph-Data') ? response.blob() : response.json();
         })
         .then(data => {
             if (data instanceof Blob) {
-                // Handle file (blob) response for downloading predictions
                 handleFileResponse(data);
             } else {
-                // Handle JSON response containing prediction and possibly graph data
                 handleJSONResponse(data);
             }
         })
@@ -212,36 +209,25 @@ function predict() {
 }
 
 function handleFileResponse(blobData) {
-    // Handle showing and downloading the file response
     var url = URL.createObjectURL(blobData);
+    downloadBtn.href = url;
+    downloadBtn.download = "Predictions.csv";
     downloadBtn.style.display = "block";
-    downloadBtn.onclick = function() {
-        var a = document.createElement("a");
-        a.href = url;
-        a.download = "Predictions.csv";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-    };
 }
 
 function handleJSONResponse(jsonData) {
-    // Display prediction result
     predictionResult.innerHTML = "Predicted sentiment: " + jsonData.prediction;
     if (jsonData.graph_data) {
-        // If graph data is provided, display the graph
         displayGraph(jsonData.graph_data);
     }
 }
 
 function displayGraph(graphData) {
-    // Display the graph from Base64 data or URL
     var img = new Image();
     img.src = 'data:image/png;base64,' + graphData;
-    graphContainer.innerHTML = ''; // Clear previous graph explicitly again (if needed)
     graphContainer.appendChild(img);
 }
-
 </script>
+
 
 </html>
